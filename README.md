@@ -7,7 +7,7 @@
 - Next.js 14（App Router）
 - TypeScript
 - Tailwind CSS
-- Node.js 20
+- Node.js 22
 
 ## ローカル開発
 
@@ -28,22 +28,25 @@ npm run build
 
 ## デプロイ
 
-main ブランチに push すると、Cloudflare Pages が自動デプロイ。
+main ブランチに push すると、Cloudflare（GitHub連携）が自動デプロイする。
 
-### Cloudflare Pages ビルド設定
+`next build`（`output: "export"`）で生成した `out/` を、
+`wrangler.jsonc` の設定で Cloudflare Workers の静的アセットとして配信する。
+
+### Cloudflare ビルド設定
 
 | 項目 | 値 |
 |------|-----|
-| Framework preset | Next.js (Static HTML Export) |
 | Build command | `npm run build` |
-| Build output directory | `out` |
+| Deploy command | `npx wrangler deploy` |
+| 配信ディレクトリ | `out`（`wrangler.jsonc` で指定） |
 
-### 環境変数（Cloudflare Pages の管理画面で設定）
+### 環境変数（Cloudflare の管理画面で設定）
 
 | 変数名 | 内容 |
 |--------|------|
 | `NEXT_PUBLIC_LINE_URL` | LINE公式アカウントのURL |
-| `NODE_VERSION` | `20` |
+| `NODE_VERSION` | `22`（wrangler が Node.js 22 以上を要求するため） |
 
 ## 注意事項
 
