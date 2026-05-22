@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TYPES, TypeId } from "@/lib/types";
-import ResultCard from "@/components/ResultCard";
-import CTAButton from "@/components/CTAButton";
+import BeforeAfterSection from "@/components/BeforeAfterSection";
+import SubTrendNote from "@/components/SubTrendNote";
 import Disclaimer from "@/components/Disclaimer";
 
 const TYPE_IDS: TypeId[] = ["A", "B", "C", "D", "E"];
@@ -21,10 +22,10 @@ export function generateMetadata({
   const data = TYPES[params.type.toUpperCase() as TypeId];
   if (!data) return {};
   return {
-    title: `${data.name} | 自分に合う腸活タイプ診断`,
+    title: `${data.name} | 腸活スタートタイプ診断`,
     description: data.catchphrase,
     openGraph: {
-      title: `あなたの腸活タイプは「${data.name}」`,
+      title: `あなたの腸活スタートタイプは「${data.name}」`,
       description: data.catchphrase,
       type: "website",
     },
@@ -43,28 +44,107 @@ export default function ResultPage({
   const lineUrl = process.env.NEXT_PUBLIC_LINE_URL || "#";
 
   return (
-    <main className="max-w-md mx-auto px-6 py-12 flex flex-col min-h-screen">
-      <ResultCard data={data} />
-
-      <div className="mt-10 flex flex-col items-center gap-3">
-        <CTAButton href={lineUrl} external>
-          LINEで詳細を受け取る
-        </CTAButton>
-        <p className="text-xs text-stone-500 text-center leading-relaxed">
-          3日間のミニ講座と無料個別相談の案内が届きます
+    <main className="max-w-md mx-auto px-4 py-8">
+      {/* ヘッダー */}
+      <header className="text-center mb-6">
+        <p className="text-sm text-stone-500 mb-2">
+          あなたの腸活スタートタイプは
         </p>
-      </div>
+        <h1 className="text-2xl font-bold text-stone-800 leading-relaxed">
+          {data.name}
+        </h1>
+        <Suspense fallback={null}>
+          <SubTrendNote main={type} />
+        </Suspense>
+        <p className="text-stone-700 leading-relaxed mt-4">
+          {data.catchphrase}
+        </p>
+      </header>
 
-      <div className="mt-10 text-center">
-        <Link
-          href="/"
-          className="text-sm text-stone-500 hover:text-stone-700 underline underline-offset-4"
+      {/* Before / After（中核） */}
+      <BeforeAfterSection
+        typeId={type}
+        beforeTitle={data.beforeTitle}
+        beforeDescription={data.beforeDescription}
+        afterTitle={data.afterTitle}
+        afterDescription={data.afterDescription}
+        transitionMessage={data.transitionMessage}
+        traits={data.traits}
+        altPrefix={data.name}
+      />
+
+      {/* 今日からできること */}
+      <section className="my-8">
+        <h2 className="font-bold mb-3 text-stone-800">✨ 今日からできること</h2>
+        <ol className="space-y-2">
+          {data.todos.map((todo, i) => (
+            <li key={todo} className="text-stone-700 leading-relaxed">
+              {i + 1}. {todo}
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* コンビニで選ぶなら */}
+      <section className="my-8">
+        <h2 className="font-bold mb-3 text-stone-800">🍵 コンビニで選ぶなら</h2>
+        <ul className="grid grid-cols-2 gap-2">
+          {data.conveni.map((c) => (
+            <li key={c} className="text-stone-700 text-sm">
+              ・{c}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* レシピ */}
+      <section className="my-8 bg-stone-100/60 rounded-2xl p-6">
+        <h2 className="font-bold mb-3 text-stone-800">🥣 おすすめレシピ</h2>
+        <p className="font-bold mb-2 text-stone-800">{data.recipeName}</p>
+        <p className="text-sm text-stone-600 mb-1">
+          材料：{data.recipeIngredients.join("、")}
+        </p>
+        <p className="text-sm text-stone-700 mb-3 leading-relaxed">
+          {data.recipeHow}
+        </p>
+        <p className="text-xs text-stone-600 leading-relaxed">
+          {data.recipeNote}
+        </p>
+      </section>
+
+      {/* 菌の豆知識（折りたたみ） */}
+      <details className="my-8 bg-stone-100/60 rounded-2xl p-4">
+        <summary className="cursor-pointer font-bold text-stone-700">
+          もっと知りたい人向け：菌の豆知識
+        </summary>
+        <p className="text-xs text-stone-600 leading-relaxed mt-3">
+          {data.bacteriaNote}
+        </p>
+      </details>
+
+      {/* 注意書き */}
+      <Disclaimer />
+
+      {/* LINE CTA */}
+      <section className="my-8 text-center">
+        <a
+          href={lineUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-2xl transition"
         >
+          タイプ別の詳しい対策をLINEで受け取る
+        </a>
+        <p className="text-xs text-stone-500 mt-3 leading-relaxed">
+          あなたのタイプに合わせて、3日間のミニ腸活講座をお届けします。
+        </p>
+      </section>
+
+      <div className="text-center mt-8">
+        <Link href="/" className="text-sm text-stone-500 underline">
           もう一度診断する
         </Link>
       </div>
-
-      <Disclaimer />
     </main>
   );
 }

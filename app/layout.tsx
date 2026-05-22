@@ -9,10 +9,10 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "自分に合う腸活タイプ診断",
-  description: "12問で分かる、あなたに合った腸活の始め方。",
+  title: "腸活スタートタイプ診断",
+  description: "7問で分かる、自分に合った腸活の始め方。",
   openGraph: {
-    title: "自分に合う腸活タイプ診断",
+    title: "腸活スタートタイプ診断",
     description:
       "腸活しているのに変わらない理由は、あなたの腸に合っていないからかもしれません。",
     type: "website",
