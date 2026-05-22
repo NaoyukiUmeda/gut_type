@@ -44,6 +44,14 @@ type DebugLog = {
   error?: string;
 };
 
+// レスポンス本文を返しつつ、同じ内容を console.log で出力する。
+// Cloudflare のテレメトリ（logs 配列）から内容を確認できるようにするため。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function jsonLog(payload: any, status?: number) {
+  console.log("[steps/run]", JSON.stringify(payload));
+  return NextResponse.json(payload, status ? { status } : undefined);
+}
+
 export async function GET(req: NextRequest) {
   const debug: DebugLog[] = [];
   const now = new Date().toISOString();
@@ -51,10 +59,7 @@ export async function GET(req: NextRequest) {
   // 1. 認可チェック
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 }
-    );
+    return jsonLog({ ok: false, error: "unauthorized" }, 401);
   }
 
   // 2. 環境変数チェック
@@ -67,10 +72,7 @@ export async function GET(req: NextRequest) {
   debug.push({ step: "env_check", ok: true, detail: envCheck });
 
   if (!envCheck.SUPABASE_URL || !envCheck.SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json(
-      { ok: false, error: "missing_env", debug },
-      { status: 500 }
-    );
+    return jsonLog({ ok: false, error: "missing_env", debug }, 500);
   }
 
   // 3. Supabaseクライアント初期化
@@ -84,10 +86,7 @@ export async function GET(req: NextRequest) {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json(
-      { ok: false, error: "supabase_init_failed", debug },
-      { status: 500 }
-    );
+    return jsonLog({ ok: false, error: "supabase_init_failed", debug }, 500);
   }
 
   // 4. 配信対象の取得
@@ -108,10 +107,7 @@ export async function GET(req: NextRequest) {
         error: error.message,
         detail: { code: error.code, hint: error.hint, details: error.details },
       });
-      return NextResponse.json(
-        { ok: false, error: "fetch_failed", debug },
-        { status: 500 }
-      );
+      return jsonLog({ ok: false, error: "fetch_failed", debug }, 500);
     }
 
     deliveries = data || [];
@@ -136,10 +132,7 @@ export async function GET(req: NextRequest) {
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     });
-    return NextResponse.json(
-      { ok: false, error: "fetch_exception", debug },
-      { status: 500 }
-    );
+    return jsonLog({ ok: false, error: "fetch_exception", debug }, 500);
   }
 
   // 5. 配信処理
@@ -240,7 +233,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  return jsonLog({
     ok: true,
     sent: sentCount,
     failed: failedCount,
