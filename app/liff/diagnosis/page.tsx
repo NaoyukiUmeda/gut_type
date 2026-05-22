@@ -14,17 +14,19 @@ type Profile = {
   statusMessage?: string;
 };
 
-type Step =
-  | "loading"
-  | "quiz"
-  | "calculating"
-  | "result"
-  | "not-in-line"
-  | "error";
+type Step = "loading" | "quiz" | "calculating" | "result" | "error";
+
+type DebugInfo = {
+  liffId: string;
+  isInClient: boolean | null;
+  isLoggedIn: boolean | null;
+  error: string | null;
+};
 
 export default function LiffDiagnosisPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [step, setStep] = useState<Step>("loading");
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [result, setResult] = useState<TypeId | null>(null);
@@ -32,22 +34,40 @@ export default function LiffDiagnosisPage() {
 
   useEffect(() => {
     const init = async () => {
+      const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+
+      // 環境変数チェック
+      if (!liffId) {
+        console.error("NEXT_PUBLIC_LIFF_ID is not set");
+        setDebugInfo({
+          liffId: "(未設定)",
+          isInClient: null,
+          isLoggedIn: null,
+          error: "NEXT_PUBLIC_LIFF_ID が設定されていません",
+        });
+        setStep("error");
+        return;
+      }
+
       try {
         // @line/liff はクライアント専用。SSR時の評価を避けるため動的import。
         const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+        await liff.init({ liffId });
 
-        // LINE内ブラウザでない場合は LINE登録への案内を表示
-        if (!liff.isInClient()) {
-          setStep("not-in-line");
-          return;
-        }
+        const isInClient = liff.isInClient();
+        const isLoggedIn = liff.isLoggedIn();
 
-        if (!liff.isLoggedIn()) {
+        setDebugInfo({ liffId, isInClient, isLoggedIn, error: null });
+
+        // 未ログインならログイン処理。
+        // - LINE内ブラウザ: 自動でログインされる
+        // - 通常Webブラウザ: LINEログイン画面へリダイレクト → 戻ってくる
+        if (!isLoggedIn) {
           liff.login();
           return;
         }
 
+        // プロフィール取得（LINE内・Webブラウザ両方で動作）
         const p = await liff.getProfile();
         setProfile({
           userId: p.userId,
@@ -57,7 +77,14 @@ export default function LiffDiagnosisPage() {
         });
         setStep("quiz");
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("LIFF init error:", err);
+        setDebugInfo({
+          liffId,
+          isInClient: null,
+          isLoggedIn: null,
+          error: errorMsg,
+        });
         setStep("error");
       }
     };
@@ -127,30 +154,6 @@ export default function LiffDiagnosisPage() {
     );
   }
 
-  // LINE外ブラウザで開かれた場合
-  if (step === "not-in-line") {
-    return (
-      <main className="max-w-md mx-auto px-5 py-16 text-center">
-        <h2 className="text-xl font-bold mb-4 text-stone-800">
-          LINEアプリでご利用ください
-        </h2>
-        <p className="text-stone-700 leading-relaxed mb-6">
-          この診断はLINEアプリ内で動作します。
-          <br />
-          LINEで友だち追加してから、
-          <br />
-          トーク画面のメニューよりお進みください。
-        </p>
-        <a
-          href={process.env.NEXT_PUBLIC_LINE_URL || "#"}
-          className="inline-block bg-emerald-500 text-white font-bold py-4 px-8 rounded-2xl"
-        >
-          LINE友だち追加へ
-        </a>
-      </main>
-    );
-  }
-
   // エラー
   if (step === "error") {
     return (
@@ -158,11 +161,21 @@ export default function LiffDiagnosisPage() {
         <h2 className="text-xl font-bold mb-4 text-stone-800">
           エラーが発生しました
         </h2>
-        <p className="text-stone-700 leading-relaxed">
+        <p className="text-stone-700 leading-relaxed mb-6">
           申し訳ありません。
           <br />
           しばらくしてからもう一度お試しください。
         </p>
+
+        {/* デバッグ情報（本番リリース後に削除） */}
+        <details className="mt-8 text-left bg-stone-100 rounded-xl p-4 text-xs">
+          <summary className="cursor-pointer text-stone-600 font-bold">
+            デバッグ情報
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap break-all text-stone-700">
+{JSON.stringify(debugInfo, null, 2)}
+          </pre>
+        </details>
       </main>
     );
   }
