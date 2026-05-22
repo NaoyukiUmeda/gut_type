@@ -125,19 +125,22 @@ export default function ResultPage({
       {/* 注意書き */}
       <Disclaimer />
 
-      {/* LINE CTA */}
-      <section className="my-8 text-center">
+      {/* LINE誘導（最重要CTA） */}
+      <section className="my-8 bg-emerald-50/60 rounded-3xl p-6 border border-emerald-100">
+        <p className="text-sm text-stone-600 mb-3">📱 さらに詳しく知りたい方は</p>
+        <h2 className="font-bold text-lg mb-3 text-stone-800 leading-relaxed">
+          LINEで「あなた専用の3日間ミニ講座」を受け取れます
+        </h2>
+        <p className="text-sm text-stone-600 mb-5 leading-relaxed">
+          今の結果に加えて、{data.name}向けの具体的なアクションプランを
+          3日間にわたってお届けします。
+        </p>
         <a
           href={lineUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-2xl transition"
+          className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-2xl text-center transition"
         >
-          タイプ別の詳しい対策をLINEで受け取る
+          LINEで詳しい解説を受け取る
         </a>
-        <p className="text-xs text-stone-500 mt-3 leading-relaxed">
-          あなたのタイプに合わせて、3日間のミニ腸活講座をお届けします。
-        </p>
       </section>
 
       <div className="text-center mt-8">
