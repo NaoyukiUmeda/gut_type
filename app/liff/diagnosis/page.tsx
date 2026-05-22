@@ -14,7 +14,13 @@ type Profile = {
   statusMessage?: string;
 };
 
-type Step = "loading" | "quiz" | "calculating" | "result" | "error";
+type Step =
+  | "loading"
+  | "quiz"
+  | "calculating"
+  | "result"
+  | "not-in-line"
+  | "error";
 
 export default function LiffDiagnosisPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -30,6 +36,12 @@ export default function LiffDiagnosisPage() {
         // @line/liff はクライアント専用。SSR時の評価を避けるため動的import。
         const liff = (await import("@line/liff")).default;
         await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! });
+
+        // LINE内ブラウザでない場合は LINE登録への案内を表示
+        if (!liff.isInClient()) {
+          setStep("not-in-line");
+          return;
+        }
 
         if (!liff.isLoggedIn()) {
           liff.login();
@@ -115,16 +127,43 @@ export default function LiffDiagnosisPage() {
     );
   }
 
+  // LINE外ブラウザで開かれた場合
+  if (step === "not-in-line") {
+    return (
+      <main className="max-w-md mx-auto px-5 py-16 text-center">
+        <h2 className="text-xl font-bold mb-4 text-stone-800">
+          LINEアプリでご利用ください
+        </h2>
+        <p className="text-stone-700 leading-relaxed mb-6">
+          この診断はLINEアプリ内で動作します。
+          <br />
+          LINEで友だち追加してから、
+          <br />
+          トーク画面のメニューよりお進みください。
+        </p>
+        <a
+          href={process.env.NEXT_PUBLIC_LINE_URL || "#"}
+          className="inline-block bg-emerald-500 text-white font-bold py-4 px-8 rounded-2xl"
+        >
+          LINE友だち追加へ
+        </a>
+      </main>
+    );
+  }
+
   // エラー
   if (step === "error") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-8 text-center">
+      <main className="max-w-md mx-auto px-5 py-16 text-center">
+        <h2 className="text-xl font-bold mb-4 text-stone-800">
+          エラーが発生しました
+        </h2>
         <p className="text-stone-700 leading-relaxed">
-          診断の準備中にエラーが発生しました。
+          申し訳ありません。
           <br />
-          LINEアプリから開き直してお試しください。
+          しばらくしてからもう一度お試しください。
         </p>
-      </div>
+      </main>
     );
   }
 

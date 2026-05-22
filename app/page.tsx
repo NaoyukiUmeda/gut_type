@@ -1,88 +1,129 @@
-import Link from "next/link";
 import Disclaimer from "@/components/Disclaimer";
 
-export default function Home() {
+export const metadata = {
+  title: "腸活スタートタイプ診断",
+  description:
+    "腸活しているのに変わらない理由は、あなたの腸に合っていないからかもしれません。3分で分かる、無料のLINE診断です。",
+  openGraph: {
+    title: "腸活スタートタイプ診断",
+    description:
+      "腸活しているのに変わらない理由は、あなたの腸に合っていないからかもしれません。",
+    type: "website",
+  },
+};
+
+export default function HomePage() {
   const lineUrl = process.env.NEXT_PUBLIC_LINE_URL || "#";
 
   return (
-    <main className="max-w-md mx-auto px-6 py-12 flex flex-col items-center min-h-screen">
-      <div className="flex-1 flex flex-col items-center justify-center text-center w-full">
-        <p className="text-3xl mb-4" aria-hidden>
-          🌱
-        </p>
-        <h1 className="text-2xl sm:text-3xl font-bold text-stone-800 leading-relaxed">
-          腸活スタートタイプ診断
-        </h1>
-        <p className="text-stone-600 leading-relaxed mt-4">
-          腸活しているのに変わらない理由は、
-          <br />
-          あなたの腸に合っていないからかもしれません。
-        </p>
+    <main className="min-h-screen bg-stone-50">
+      <div className="max-w-md mx-auto px-5 py-12">
+        {/* ヘッダー */}
+        <header className="text-center mb-10">
+          <h1 className="text-xl font-bold text-stone-700 tracking-wider">
+            腸活スタートタイプ診断
+          </h1>
+        </header>
 
-        <div className="bg-white rounded-2xl border border-stone-100 shadow-sm px-6 py-6 mt-8 text-left w-full">
-          <p className="text-stone-700 leading-loose text-sm">
-            腸活って、ヨーグルトを食べればいい。
+        {/* ファーストビュー */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-stone-800 leading-relaxed mb-6">
+            腸活しているのに変わらない理由は、
             <br />
-            サプリを飲めばいい。
+            あなたの腸に合っていないからかも
             <br />
-            発酵食品を増やせばいい。
-          </p>
-          <p className="text-stone-700 leading-loose text-sm mt-4">
-            そう思われがちだけど、
+            しれません。
+          </h2>
+          <p className="text-stone-700 leading-relaxed mb-8">
+            食事・生活リズム・お腹の体感から、
             <br />
-            実際は人によって合うものが違います。
+            あなたに合う腸活の始め方が分かる、
+            <br />
+            無料のLINE診断です。
           </p>
-          <p className="text-stone-700 leading-loose text-sm mt-4">
-            この診断では、食事・生活リズム・お腹の体感から、
-            あなたに合いそうな腸活の始め方を整理します。
-          </p>
-        </div>
-
-        <p className="text-xs text-stone-500 mt-6">所要時間：約3分・7問</p>
-
-        {/* CTA：LINE誘導をメインに */}
-        <div className="w-full mt-6">
-          {/* メインCTA */}
+          <div className="text-center text-sm text-stone-500 mb-6">
+            3分 ・ 7問 ・ 無料
+          </div>
           <a
             href={lineUrl}
-            className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl text-center transition"
+            className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl text-center transition shadow-sm"
           >
-            LINEで診断する（推奨）
+            LINE友だち追加して診断
           </a>
-          <p className="text-xs text-stone-500 text-center mt-2">
-            結果に加えて、あなた専用の3日間ミニ講座が届きます
+          <p className="text-xs text-stone-500 text-center mt-3">
+            タップするとLINEアプリが開きます
           </p>
+        </section>
 
-          {/* 区切り */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-stone-200" />
-            <p className="text-xs text-stone-400">または</p>
-            <div className="flex-1 h-px bg-stone-200" />
+        {/* 診断でわかること */}
+        <section className="mb-12 bg-white rounded-3xl p-6 border border-stone-200/80">
+          <h3 className="font-bold text-stone-800 mb-4">診断でわかること</h3>
+          <ul className="space-y-3">
+            {[
+              "あなたの腸活タイプ",
+              "今日からできる3つのアクション",
+              "コンビニで選べる食材",
+              "タイプ別おすすめレシピ",
+              "3日間のミニ腸活講座(LINE配信)",
+              "希望者には無料個別相談",
+            ].map((item) => (
+              <li key={item} className="flex gap-3 text-stone-700">
+                <span className="text-emerald-500 flex-shrink-0">✓</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* 5つのタイプ */}
+        <section className="mb-12">
+          <h3 className="font-bold text-stone-800 mb-4 text-center">
+            あなたはどのタイプ?
+          </h3>
+          <div className="grid grid-cols-1 gap-3">
+            {[
+              "お肉多め・ニオイ気になるタイプ",
+              "こってり外食・だるさタイプ",
+              "糖質寄り・食後眠気タイプ",
+              "ストレス反応・リズム乱れタイプ",
+              "バランス維持タイプ",
+            ].map((t) => (
+              <div
+                key={t}
+                className="bg-white rounded-2xl px-5 py-4 border border-stone-200/80 text-stone-700 text-sm text-center"
+              >
+                {t}
+              </div>
+            ))}
           </div>
+        </section>
 
-          {/* サブCTA */}
+        {/* こんな方におすすめ */}
+        <section className="mb-12 bg-emerald-50/60 rounded-3xl p-6 border border-emerald-100">
+          <h3 className="font-bold text-stone-800 mb-4">こんな方におすすめ</h3>
+          <ul className="space-y-2 text-stone-700 text-sm">
+            <li>・腸活しているのに変化を感じない</li>
+            <li>・何から始めたらいいか分からない</li>
+            <li>・ヨーグルトやサプリで効果が出ない</li>
+            <li>・自分に合う方法を整理したい</li>
+          </ul>
+        </section>
+
+        {/* もう一度CTA */}
+        <section className="mb-12">
           <a
-            href="/quiz/"
-            className="block w-full bg-white hover:bg-stone-50 text-stone-700 font-bold py-4 px-8 rounded-2xl text-center transition border-2 border-stone-200"
+            href={lineUrl}
+            className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl text-center transition shadow-sm"
           >
-            Web版で診断する
+            LINE友だち追加して診断
           </a>
-          <p className="text-xs text-stone-500 text-center mt-2">
-            LINE登録なしでも結果は見られます
+          <p className="text-xs text-stone-500 text-center mt-3">
+            タップするとLINEアプリが開きます
           </p>
+        </section>
 
-          <div className="text-center mt-6">
-            <Link
-              href="/notice/"
-              className="text-sm text-stone-500 hover:text-stone-700 underline underline-offset-4"
-            >
-              この診断について
-            </Link>
-          </div>
-        </div>
+        <Disclaimer />
       </div>
-
-      <Disclaimer />
     </main>
   );
 }
