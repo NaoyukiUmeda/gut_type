@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSupabase } from "@/lib/supabase";
-import { pushMessage, Message } from "@/lib/line";
+import { pushMessage } from "@/lib/line";
 import { TypeId } from "@/lib/types";
 
 export const runtime = "edge";
@@ -35,56 +35,163 @@ const STEP_MESSAGES: Record<TypeId, Record<number, string>> = {
   },
 };
 
-// Day3 の末尾に付ける個別相談の案内
 const CONSULT_URL = process.env.NEXT_PUBLIC_CONSULT_URL || "#";
 
-export async function GET(req: NextRequest) {
-  // 認可（外部cronサービスから CRON_SECRET 付きで叩く想定）
-  const auth = req.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
+type DebugLog = {
+  step: string;
+  ok: boolean;
+  detail?: unknown;
+  error?: string;
+};
 
-  const supabase = getServerSupabase();
+export async function GET(req: NextRequest) {
+  const debug: DebugLog[] = [];
   const now = new Date().toISOString();
 
-  // 送信対象：pending or in_progress、next_send_at が現在以前、未ブロック
-  const { data: deliveries, error } = await supabase
-    .from("step_deliveries")
-    .select("*, line_users!inner(is_blocked)")
-    .in("status", ["pending", "in_progress"])
-    .lte("next_send_at", now)
-    .eq("line_users.is_blocked", false);
-
-  if (error) {
-    console.error("Cron query error:", error);
-    return NextResponse.json({ ok: false }, { status: 500 });
+  // 1. 認可チェック
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json(
+      { ok: false, error: "unauthorized" },
+      { status: 401 }
+    );
   }
 
+  // 2. 環境変数チェック
+  const envCheck = {
+    SUPABASE_URL: !!process.env.SUPABASE_URL,
+    SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    LINE_CHANNEL_ACCESS_TOKEN: !!process.env.LINE_CHANNEL_ACCESS_TOKEN,
+    CRON_SECRET: !!process.env.CRON_SECRET,
+  };
+  debug.push({ step: "env_check", ok: true, detail: envCheck });
+
+  if (!envCheck.SUPABASE_URL || !envCheck.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json(
+      { ok: false, error: "missing_env", debug },
+      { status: 500 }
+    );
+  }
+
+  // 3. Supabaseクライアント初期化
+  let supabase;
+  try {
+    supabase = getServerSupabase();
+    debug.push({ step: "supabase_init", ok: true });
+  } catch (err) {
+    debug.push({
+      step: "supabase_init",
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      { ok: false, error: "supabase_init_failed", debug },
+      { status: 500 }
+    );
+  }
+
+  // 4. 配信対象の取得
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let deliveries: any[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("step_deliveries")
+      .select("*, line_users!inner(is_blocked, display_name)")
+      .in("status", ["pending", "in_progress"])
+      .lte("next_send_at", now)
+      .eq("line_users.is_blocked", false);
+
+    if (error) {
+      debug.push({
+        step: "fetch_deliveries",
+        ok: false,
+        error: error.message,
+        detail: { code: error.code, hint: error.hint, details: error.details },
+      });
+      return NextResponse.json(
+        { ok: false, error: "fetch_failed", debug },
+        { status: 500 }
+      );
+    }
+
+    deliveries = data || [];
+    debug.push({
+      step: "fetch_deliveries",
+      ok: true,
+      detail: {
+        count: deliveries.length,
+        sample: deliveries[0]
+          ? {
+              id: deliveries[0].id,
+              main_type: deliveries[0].main_type,
+              current_day: deliveries[0].current_day,
+              status: deliveries[0].status,
+            }
+          : null,
+      },
+    });
+  } catch (err) {
+    debug.push({
+      step: "fetch_deliveries_exception",
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      { ok: false, error: "fetch_exception", debug },
+      { status: 500 }
+    );
+  }
+
+  // 5. 配信処理
   let sentCount = 0;
   let failedCount = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const itemLogs: any[] = [];
 
-  for (const delivery of deliveries || []) {
+  for (const delivery of deliveries) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const itemLog: any = {
+      id: delivery.id,
+      main_type: delivery.main_type,
+      current_day: delivery.current_day,
+      ok: false,
+    };
+
     try {
       const nextDay = delivery.current_day + 1;
 
-      if (nextDay > 3) {
-        // 既に3日分送信済み → 完了に倒す
-        await supabase
-          .from("step_deliveries")
-          .update({
-            status: "completed",
-            completed_at: now,
-            updated_at: now,
-          })
-          .eq("id", delivery.id);
+      if (!["A", "B", "C", "D", "E"].includes(delivery.main_type)) {
+        itemLog.error = `invalid main_type: ${delivery.main_type}`;
+        itemLogs.push(itemLog);
+        failedCount++;
         continue;
       }
 
-      const text = STEP_MESSAGES[delivery.main_type as TypeId][nextDay];
-      const messages: Message[] = [{ type: "text", text }];
+      if (nextDay > 3) {
+        const { error: updateErr } = await supabase
+          .from("step_deliveries")
+          .update({ status: "completed", completed_at: now, updated_at: now })
+          .eq("id", delivery.id);
+        if (updateErr) {
+          itemLog.error = `update_complete_failed: ${updateErr.message}`;
+        } else {
+          itemLog.ok = true;
+          itemLog.note = "marked as completed";
+        }
+        itemLogs.push(itemLog);
+        continue;
+      }
 
-      // Day3 は個別相談URLも添える
+      const message = STEP_MESSAGES[delivery.main_type as TypeId]?.[nextDay];
+      if (!message) {
+        itemLog.error = `no message for type=${delivery.main_type} day=${nextDay}`;
+        itemLogs.push(itemLog);
+        failedCount++;
+        continue;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const messages: any[] = [{ type: "text", text: message }];
       if (nextDay === 3) {
         messages.push({
           type: "text",
@@ -93,29 +200,42 @@ export async function GET(req: NextRequest) {
       }
 
       const ok = await pushMessage(delivery.line_user_id, messages);
-
-      if (ok) {
-        sentCount++;
-        // 次回送信日時（翌日 UTC 0:00 = JST 9:00）
-        const next = new Date();
-        next.setUTCDate(next.getUTCDate() + 1);
-        next.setUTCHours(0, 0, 0, 0);
-
-        await supabase
-          .from("step_deliveries")
-          .update({
-            current_day: nextDay,
-            status: nextDay >= 3 ? "completed" : "in_progress",
-            next_send_at: nextDay >= 3 ? null : next.toISOString(),
-            completed_at: nextDay >= 3 ? now : null,
-            updated_at: now,
-          })
-          .eq("id", delivery.id);
-      } else {
+      if (!ok) {
+        itemLog.error = "push_failed (LINE API)";
+        itemLogs.push(itemLog);
         failedCount++;
+        continue;
       }
+
+      const next = new Date();
+      next.setUTCDate(next.getUTCDate() + 1);
+      next.setUTCHours(0, 0, 0, 0);
+
+      const { error: updateErr } = await supabase
+        .from("step_deliveries")
+        .update({
+          current_day: nextDay,
+          status: nextDay >= 3 ? "completed" : "in_progress",
+          next_send_at: nextDay >= 3 ? null : next.toISOString(),
+          completed_at: nextDay >= 3 ? now : null,
+          updated_at: now,
+        })
+        .eq("id", delivery.id);
+
+      if (updateErr) {
+        itemLog.error = `update_after_push_failed: ${updateErr.message}`;
+        itemLogs.push(itemLog);
+        failedCount++;
+        continue;
+      }
+
+      itemLog.ok = true;
+      itemLog.sent_day = nextDay;
+      itemLogs.push(itemLog);
+      sentCount++;
     } catch (err) {
-      console.error("Step delivery error:", err);
+      itemLog.error = err instanceof Error ? err.message : String(err);
+      itemLogs.push(itemLog);
       failedCount++;
     }
   }
@@ -124,6 +244,8 @@ export async function GET(req: NextRequest) {
     ok: true,
     sent: sentCount,
     failed: failedCount,
-    total: deliveries?.length || 0,
+    total: deliveries.length,
+    debug,
+    items: itemLogs,
   });
 }
