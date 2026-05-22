@@ -14,7 +14,13 @@ type Profile = {
   statusMessage?: string;
 };
 
-type Step = "loading" | "quiz" | "calculating" | "result" | "error";
+type Step =
+  | "loading"
+  | "start"
+  | "quiz"
+  | "calculating"
+  | "result"
+  | "error";
 
 type DebugInfo = {
   liffId: string;
@@ -75,7 +81,40 @@ export default function LiffDiagnosisPage() {
           pictureUrl: p.pictureUrl,
           statusMessage: p.statusMessage,
         });
-        setStep("quiz");
+
+        // クエリパラメータ ?result=X をチェック（診断結果ディープリンク）
+        const params = new URLSearchParams(window.location.search);
+        const resultParam = params.get("result");
+
+        if (resultParam && ["A", "B", "C", "D", "E"].includes(resultParam)) {
+          // 結果ディープリンク経由：DBから最新の診断結果を取得
+          try {
+            const res = await fetch(
+              `/api/diagnosis/latest?line_user_id=${encodeURIComponent(
+                p.userId
+              )}`
+            );
+            const data = await res.json();
+            if (data.ok && data.diagnosis) {
+              setResult(data.diagnosis.main_type);
+              setSubResult(data.diagnosis.sub_type);
+              setStep("result");
+              return;
+            }
+          } catch (fetchErr) {
+            console.error("Fetch latest diagnosis error:", fetchErr);
+          }
+
+          // 取得失敗時は URL の result パラメータをフォールバックとして使用
+          // （DBにデータが無くても結果ページは表示できる）
+          setResult(resultParam as TypeId);
+          setSubResult(null);
+          setStep("result");
+          return;
+        }
+
+        // クエリパラメータなし → 診断スタート画面
+        setStep("start");
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("LIFF init error:", err);
@@ -151,6 +190,35 @@ export default function LiffDiagnosisPage() {
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-stone-600">準備中...</p>
       </div>
+    );
+  }
+
+  // スタート画面
+  if (step === "start") {
+    return (
+      <main className="max-w-md mx-auto px-5 py-12 min-h-screen flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center text-center">
+          <p className="text-3xl mb-4" aria-hidden>
+            🌱
+          </p>
+          <h1 className="text-2xl font-bold text-stone-800 leading-relaxed">
+            腸活スタートタイプ診断
+          </h1>
+          <p className="text-stone-600 leading-relaxed mt-4">
+            食事・生活リズム・お腹の体感から、
+            <br />
+            あなたに合う腸活の始め方が分かります。
+          </p>
+          <p className="text-xs text-stone-500 mt-4">所要時間：約3分・7問</p>
+          <button
+            onClick={() => setStep("quiz")}
+            className="mt-8 w-full max-w-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg rounded-2xl px-8 py-4 transition"
+          >
+            診断をはじめる
+          </button>
+        </div>
+        <Disclaimer />
+      </main>
     );
   }
 
@@ -230,12 +298,48 @@ export default function LiffDiagnosisPage() {
           ※詳しい解説はLINEのトーク画面でも確認できます
         </p>
 
-        <a
-          href={process.env.NEXT_PUBLIC_CONSULT_URL || "#"}
+        <button
+          onClick={async () => {
+            const consultUrl = process.env.NEXT_PUBLIC_CONSULT_URL;
+            if (!consultUrl) {
+              alert("予約URLが設定されていません。");
+              return;
+            }
+            // LIFF内ブラウザなら liff.openWindow、それ以外は新規タブで開く
+            const liff = (await import("@line/liff")).default;
+            if (liff.isInClient()) {
+              liff.openWindow({ url: consultUrl, external: false });
+            } else {
+              window.open(consultUrl, "_blank", "noopener,noreferrer");
+            }
+          }}
           className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-2xl text-center transition"
         >
           無料個別相談を予約する
-        </a>
+        </button>
+        <p className="text-xs text-stone-500 mt-3 text-center leading-relaxed">
+          30分 ・ 無料 ・ オンライン
+          <br />
+          予約はカレンダーから希望日時を選ぶだけ
+        </p>
+
+        {/* 再診断 */}
+        <section className="my-8 text-center">
+          <button
+            onClick={() => {
+              // クエリパラメータを消してスタート画面に戻す
+              window.history.replaceState({}, "", "/liff/diagnosis/");
+              setResult(null);
+              setSubResult(null);
+              setCurrentQ(0);
+              setAnswers({});
+              setStep("start");
+            }}
+            className="text-sm text-stone-500 underline"
+          >
+            もう一度診断する
+          </button>
+        </section>
 
         <Disclaimer />
       </main>
