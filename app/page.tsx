@@ -1,129 +1,22 @@
+import Link from "next/link";
+import Image from "next/image";
+import { SITE } from "@/lib/site";
+import { TYPE_IDS, TYPES } from "@/lib/types";
+import CheckFlow from "@/components/CheckFlow";
 import Disclaimer from "@/components/Disclaimer";
-
-export const metadata = {
-  title: "腸活スタートタイプ診断",
-  description:
-    "腸活しているのに変わらない理由は、あなたの腸に合っていないからかもしれません。3分で分かる、無料のLINE診断です。",
-  openGraph: {
-    title: "腸活スタートタイプ診断",
-    description:
-      "腸活しているのに変わらない理由は、あなたの腸に合っていないからかもしれません。",
-    type: "website",
-  },
-};
-
 export default function HomePage() {
-  const lineUrl = process.env.NEXT_PUBLIC_LINE_URL || "#";
-
-  return (
-    <main className="min-h-screen bg-stone-50">
-      <div className="max-w-md mx-auto px-5 py-12">
-        {/* ヘッダー */}
-        <header className="text-center mb-10">
-          <h1 className="text-xl font-bold text-stone-700 tracking-wider">
-            腸活スタートタイプ診断
-          </h1>
-        </header>
-
-        {/* ファーストビュー */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-stone-800 leading-relaxed mb-6">
-            腸活しているのに変わらない理由は、
-            <br />
-            あなたの腸に合っていないからかも
-            <br />
-            しれません。
-          </h2>
-          <p className="text-stone-700 leading-relaxed mb-8">
-            食事・生活リズム・お腹の体感から、
-            <br />
-            あなたに合う腸活の始め方が分かる、
-            <br />
-            無料のLINE診断です。
-          </p>
-          <div className="text-center text-sm text-stone-500 mb-6">
-            3分 ・ 7問 ・ 無料
-          </div>
-          <a
-            href={lineUrl}
-            className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl text-center transition shadow-sm"
-          >
-            LINE友だち追加して診断
-          </a>
-          <p className="text-xs text-stone-500 text-center mt-3">
-            タップするとLINEアプリが開きます
-          </p>
-        </section>
-
-        {/* 診断でわかること */}
-        <section className="mb-12 bg-white rounded-3xl p-6 border border-stone-200/80">
-          <h3 className="font-bold text-stone-800 mb-4">診断でわかること</h3>
-          <ul className="space-y-3">
-            {[
-              "あなたの腸活タイプ",
-              "今日からできる3つのアクション",
-              "コンビニで選べる食材",
-              "タイプ別おすすめレシピ",
-              "3日間のミニ腸活講座(LINE配信)",
-              "希望者には無料個別相談",
-            ].map((item) => (
-              <li key={item} className="flex gap-3 text-stone-700">
-                <span className="text-emerald-500 flex-shrink-0">✓</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* 5つのタイプ */}
-        <section className="mb-12">
-          <h3 className="font-bold text-stone-800 mb-4 text-center">
-            あなたはどのタイプ?
-          </h3>
-          <div className="grid grid-cols-1 gap-3">
-            {[
-              "お肉多め・ニオイ気になるタイプ",
-              "こってり外食・だるさタイプ",
-              "糖質寄り・食後眠気タイプ",
-              "ストレス反応・リズム乱れタイプ",
-              "バランス維持タイプ",
-            ].map((t) => (
-              <div
-                key={t}
-                className="bg-white rounded-2xl px-5 py-4 border border-stone-200/80 text-stone-700 text-sm text-center"
-              >
-                {t}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* こんな方におすすめ */}
-        <section className="mb-12 bg-emerald-50/60 rounded-3xl p-6 border border-emerald-100">
-          <h3 className="font-bold text-stone-800 mb-4">こんな方におすすめ</h3>
-          <ul className="space-y-2 text-stone-700 text-sm">
-            <li>・腸活しているのに変化を感じない</li>
-            <li>・何から始めたらいいか分からない</li>
-            <li>・ヨーグルトやサプリで効果が出ない</li>
-            <li>・自分に合う方法を整理したい</li>
-          </ul>
-        </section>
-
-        {/* もう一度CTA */}
-        <section className="mb-12">
-          <a
-            href={lineUrl}
-            className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-5 px-8 rounded-2xl text-center transition shadow-sm"
-          >
-            LINE友だち追加して診断
-          </a>
-          <p className="text-xs text-stone-500 text-center mt-3">
-            タップするとLINEアプリが開きます
-          </p>
-        </section>
-
-        <Disclaimer />
-      </div>
-    </main>
-  );
+  return <main id="main">
+    <section className="shell hero"><div><p className="eyebrow">GutMediaの生活習慣チェック</p>
+      <h1>食事と生活習慣を、<br/>7問で振り返る。</h1>
+      <p className="hero-description">何を食べたか、いつ眠ったか。最近の習慣を答えると、振り返る項目と、記録するときの行動例が見られます。</p>
+      <p className="check-meta">全7問・無料・LINE登録なしでも利用できます</p>
+      <Link className="button" href="/liff/diagnosis/">7問のチェックを始める <span aria-hidden>→</span></Link>
+      <p className="small-note">回答はこの画面内で集計します。LINEへの保存は、希望する場合だけです。</p>
+    </div><figure className="hero-photo"><Image src="/images/food-notes.webp" alt="ご飯と野菜のおかずに、記録用のノートと鉛筆を添えた食卓。" width={1536} height={1024} priority/><figcaption>AI生成イメージ</figcaption></figure></section>
+    <section className="shell section"><CheckFlow/></section>
+    <section className="section tinted"><div className="shell split"><div><p className="eyebrow">結果の見方</p><h2>結果は5つの<br/>確認項目から。</h2><p>腸内細菌の種類や、不調の原因は分かりません。回答に付けた点数を使い、5つの項目から今回の候補を表示します。</p><Link className="text-link" href="/notice/">集計方法を確認する →</Link></div><ol className="topic-list">{TYPE_IDS.map((id,i)=><li key={id}><span>0{i+1}</span>{TYPES[id].name}</li>)}</ol></div></section>
+    <section className="shell section reading"><div><p className="eyebrow">図で確認する</p><h2>食事の記録には、<br/>何を残せばいい？</h2><p>写真とメモで残せる情報の違いを、GutMediaの比較図で確認できます。</p><a className="text-link" href={SITE.foodGuideUrl}>食事記録の図解ガイドを読む ↗</a></div><div className="record-diagram" aria-label="写真とメモの使い分け"><div><span>写真</span><strong>料理の見た目</strong><p>食卓全体、盛り付け</p></div><span className="plus" aria-hidden>＋</span><div><span>メモ</span><strong>写らない情報</strong><p>時刻、材料、気づき</p></div></div></section>
+    <section className="shell line-panel"><div><p className="eyebrow">公式LINE</p><h2>LINEからの案内はこちら</h2><p>友だち追加ページが開きます。</p></div><a className="button secondary" href={SITE.lineUrl}>公式LINEを開く ↗</a></section>
+    <div className="shell"><Disclaimer/></div>
+  </main>;
 }

@@ -55,7 +55,7 @@ export const QUESTIONS: Question[] = [
       },
       {
         id: "q2_2",
-        label: "食後の甘いものがやめられない",
+        label: "食後に甘いものを食べることが多い",
         score: { C: 3 },
       },
       {
@@ -65,7 +65,7 @@ export const QUESTIONS: Question[] = [
       },
       {
         id: "q2_4",
-        label: "ストレスでドカ食い・ヤケ酒しがち",
+        label: "ストレスを感じると食事やお酒の量が増える",
         score: { D: 3, B: 1 },
       },
       {

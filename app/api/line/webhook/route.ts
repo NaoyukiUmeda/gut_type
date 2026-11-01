@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyLineSignature, getUserProfile, replyMessage } from "@/lib/line";
+import { SITE } from "@/lib/site";
 import { getServerSupabase } from "@/lib/supabase";
 
 export const runtime = "edge";
@@ -14,6 +15,8 @@ type LineWebhookEvent = {
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get("x-line-signature") || "";
+
+  if (!process.env.LINE_CHANNEL_SECRET) return new NextResponse("Not configured", { status: 503 });
 
   // 署名検証
   const valid = await verifyLineSignature(
@@ -84,11 +87,11 @@ export async function POST(req: NextRequest) {
         const text = event.message.text ?? "";
         const replyToken = event.replyToken;
 
-        if (replyToken && text.includes("診断")) {
+        if (replyToken && (text.includes("診断") || text.includes("チェック"))) {
           await replyMessage(replyToken, [
             {
               type: "text",
-              text: `診断はこちらから受けられます。\nhttps://liff.line.me/${process.env.LIFF_ID}`,
+              text: `7問で食事や生活習慣を振り返るチェックです。\n${process.env.LIFF_ID ? "https://liff.line.me/"+process.env.LIFF_ID : SITE.url+"/liff/diagnosis/"}`,
             },
           ]);
         }

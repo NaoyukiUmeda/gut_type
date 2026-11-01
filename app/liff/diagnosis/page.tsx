@@ -1,391 +1,128 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect,useRef,useState } from "react";
+import Link from "next/link";
 import { QUESTIONS } from "@/lib/questions";
-import { TYPES, TypeId } from "@/lib/types";
-import { initScores, judge } from "@/lib/judge";
-import BeforeAfterSection from "@/components/BeforeAfterSection";
+import { isTypeId,TYPE_IDS,TYPES,TypeId } from "@/lib/types";
+import { scoreAnswers,JudgeResult } from "@/lib/judge";
+import { SITE,PRIVACY_VERSION } from "@/lib/site";
 import Disclaimer from "@/components/Disclaimer";
-
-type Profile = {
-  userId: string;
-  displayName: string;
-  pictureUrl?: string;
-  statusMessage?: string;
-};
-
-type Step =
-  | "loading"
-  | "start"
-  | "quiz"
-  | "calculating"
-  | "result"
-  | "error";
-
-type DebugInfo = {
-  liffId: string;
-  isInClient: boolean | null;
-  isLoggedIn: boolean | null;
-  error: string | null;
-};
-
-export default function LiffDiagnosisPage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [step, setStep] = useState<Step>("loading");
-  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
-  const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [result, setResult] = useState<TypeId | null>(null);
-  const [subResult, setSubResult] = useState<TypeId | null>(null);
-
-  useEffect(() => {
-    const init = async () => {
-      const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
-
-      // 環境変数チェック
-      if (!liffId) {
-        console.error("NEXT_PUBLIC_LIFF_ID is not set");
-        setDebugInfo({
-          liffId: "(未設定)",
-          isInClient: null,
-          isLoggedIn: null,
-          error: "NEXT_PUBLIC_LIFF_ID が設定されていません",
-        });
-        setStep("error");
-        return;
-      }
-
-      try {
-        // @line/liff はクライアント専用。SSR時の評価を避けるため動的import。
-        const liff = (await import("@line/liff")).default;
-        await liff.init({ liffId });
-
-        const isInClient = liff.isInClient();
-        const isLoggedIn = liff.isLoggedIn();
-
-        setDebugInfo({ liffId, isInClient, isLoggedIn, error: null });
-
-        // 未ログインならログイン処理。
-        // - LINE内ブラウザ: 自動でログインされる
-        // - 通常Webブラウザ: LINEログイン画面へリダイレクト → 戻ってくる
-        if (!isLoggedIn) {
-          liff.login();
+type Answers=Record<number,string>;
+const PENDING_KEY="guttype-line-pending-v1";
+const liffId=process.env.NEXT_PUBLIC_LIFF_ID;
+const lineEnabled=!!liffId&&/^\d+-[A-Za-z0-9]+$/.test(liffId);
+export default function CheckPage(){
+  const [step,setStep]=useState<"start"|"quiz"|"result">("start");
+  const [answers,setAnswers]=useState<Answers>({});
+  const [current,setCurrent]=useState(0);
+  const [result,setResult]=useState<JudgeResult|null>(null);
+  const [example,setExample]=useState<TypeId|null>(null);
+  const [consent,setConsent]=useState(false);
+  const [subscribeSteps,setSubscribeSteps]=useState(false);
+  const [saveState,setSaveState]=useState<"idle"|"busy"|"done">("idle");
+  const [status,setStatus]=useState("");
+  const [restored,setRestored]=useState(false);
+  const heading=useRef<HTMLHeadingElement>(null);
+  const saving=useRef(false);
+  useEffect(()=>{
+    try{
+      const pending=sessionStorage.getItem(PENDING_KEY);
+      if(pending){
+        sessionStorage.removeItem(PENDING_KEY);
+        const stored=JSON.parse(pending);
+        if(Date.now()-stored.createdAt<15*60*1000){
+          const calculated=scoreAnswers(stored.answers);
+          setAnswers(stored.answers);setResult(calculated);setConsent(false);setSubscribeSteps(false);setStep("result");
+          setStatus("チェック結果を復元しました。LINEに保存する場合は、内容を確認して同意欄を選び、保存ボタンを押してください。");
           return;
         }
-
-        // プロフィール取得（LINE内・Webブラウザ両方で動作）
-        const p = await liff.getProfile();
-        setProfile({
-          userId: p.userId,
-          displayName: p.displayName,
-          pictureUrl: p.pictureUrl,
-          statusMessage: p.statusMessage,
-        });
-
-        // クエリパラメータ ?result=X をチェック（診断結果ディープリンク）
-        const params = new URLSearchParams(window.location.search);
-        const resultParam = params.get("result");
-
-        if (resultParam && ["A", "B", "C", "D", "E"].includes(resultParam)) {
-          // 結果ディープリンク経由：DBから最新の診断結果を取得
-          try {
-            const res = await fetch(
-              `/api/diagnosis/latest?line_user_id=${encodeURIComponent(
-                p.userId
-              )}`
-            );
-            const data = await res.json();
-            if (data.ok && data.diagnosis) {
-              setResult(data.diagnosis.main_type);
-              setSubResult(data.diagnosis.sub_type);
-              setStep("result");
-              return;
-            }
-          } catch (fetchErr) {
-            console.error("Fetch latest diagnosis error:", fetchErr);
-          }
-
-          // 取得失敗時は URL の result パラメータをフォールバックとして使用
-          // （DBにデータが無くても結果ページは表示できる）
-          setResult(resultParam as TypeId);
-          setSubResult(null);
-          setStep("result");
-          return;
-        }
-
-        // クエリパラメータなし → 診断スタート画面
-        setStep("start");
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("LIFF init error:", err);
-        setDebugInfo({
-          liffId,
-          isInClient: null,
-          isLoggedIn: null,
-          error: errorMsg,
-        });
-        setStep("error");
       }
-    };
-    init();
-  }, []);
-
-  const finishDiagnosis = async (
-    finalAnswers: Record<number, string>,
-    p: Profile
-  ) => {
-    const scores = initScores();
-    for (const q of QUESTIONS) {
-      const choice = q.choices.find((c) => c.id === finalAnswers[q.id]);
-      if (!choice) continue;
-      for (const [t, v] of Object.entries(choice.score)) {
-        scores[t as TypeId] += v ?? 0;
-      }
+    }catch{/* Private browsing or an expired pending result: keep the normal start screen. */}
+    const value=new URLSearchParams(window.location.search).get("result");
+    if(isTypeId(value)){setExample(value);setStep("result");}
+  },[]);
+  useEffect(()=>{if(step!=="start")heading.current?.focus();},[current,step]);
+  function reset(){
+    window.history.replaceState({},"","/liff/diagnosis/");
+    try{sessionStorage.removeItem(PENDING_KEY);}catch{/* Storage may be unavailable. */}setAnswers({});setCurrent(0);setResult(null);setExample(null);setRestored(false);setConsent(false);setSubscribeSteps(false);setSaveState("idle");setStatus("");setStep("start");
+  }
+  function next(){
+    if(!answers[QUESTIONS[current].id])return;
+    if(current<QUESTIONS.length-1){setCurrent(current+1);return;}
+    setResult(scoreAnswers(answers));setStep("result");
+  }
+  async function lineAccess(){
+    if(!lineEnabled||!liffId)throw new Error("LINE_NOT_READY");
+    const liff=(await import("@line/liff")).default;
+    await liff.init({liffId});
+    if(!liff.isLoggedIn()){
+      if(result)sessionStorage.setItem(PENDING_KEY,JSON.stringify({answers,createdAt:Date.now()}));
+      liff.login({redirectUri:window.location.href});
+      return null;
     }
-
-    const judged = judge(scores);
-
-    // DB保存 + LINE通知
-    try {
-      const res = await fetch("/api/diagnosis/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          line_user_id: p.userId,
-          display_name: p.displayName,
-          main_type: judged.main,
-          sub_type: judged.sub,
-          scores,
-          answers: finalAnswers,
-        }),
-      });
-      if (!res.ok) {
-        console.error("Save failed:", await res.text());
-      }
-    } catch (err) {
-      console.error("Save error:", err);
-    }
-
-    setResult(judged.main);
-    setSubResult(judged.sub);
-    setTimeout(() => setStep("result"), 1500);
-  };
-
-  const handleAnswer = (qId: number, choiceId: string) => {
-    const newAnswers = { ...answers, [qId]: choiceId };
-    setAnswers(newAnswers);
-
-    if (currentQ < QUESTIONS.length - 1) {
-      setTimeout(() => setCurrentQ(currentQ + 1), 200);
-    } else {
-      // 最終問 → 集計
-      setStep("calculating");
-      if (profile) finishDiagnosis(newAnswers, profile);
-    }
-  };
-
-  // ローディング
-  if (step === "loading") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-stone-600">準備中...</p>
-      </div>
-    );
+    const token=liff.getAccessToken();
+    if(!token)throw new Error("LINE_LOGIN_REQUIRED");
+    return token;
   }
-
-  // スタート画面
-  if (step === "start") {
-    return (
-      <main className="max-w-md mx-auto px-5 py-12 min-h-screen flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <p className="text-3xl mb-4" aria-hidden>
-            🌱
-          </p>
-          <h1 className="text-2xl font-bold text-stone-800 leading-relaxed">
-            腸活スタートタイプ診断
-          </h1>
-          <p className="text-stone-600 leading-relaxed mt-4">
-            食事・生活リズム・お腹の体感から、
-            <br />
-            あなたに合う腸活の始め方が分かります。
-          </p>
-          <p className="text-xs text-stone-500 mt-4">所要時間：約3分・7問</p>
-          <button
-            onClick={() => setStep("quiz")}
-            className="mt-8 w-full max-w-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg rounded-2xl px-8 py-4 transition"
-          >
-            診断をはじめる
-          </button>
-        </div>
-        <Disclaimer />
-      </main>
-    );
+  async function save(){
+    if(saving.current||!result||!consent||saveState==="done")return;
+    saving.current=true;setSaveState("busy");setStatus("");
+    try{
+      const token=await lineAccess();if(!token)return;
+      const response=await fetch("/api/diagnosis/save/",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({answers,consent:PRIVACY_VERSION,subscribeSteps})});
+      const data=await response.json();
+      if(!response.ok||!data.ok)throw new Error("SAVE_FAILED");
+      sessionStorage.removeItem(PENDING_KEY);setSaveState("done");
+      setStatus(data.lineSent?"結果を保存し、LINEに送りました。":"結果は保存されましたが、LINEへの送信はできませんでした。");
+      if(subscribeSteps&&!data.stepsScheduled)setStatus(s=>s+" 3回の配信は登録できませんでした。");
+      else if(subscribeSteps)setStatus(s=>s+" 3回の案内配信を登録しました。");
+    }catch{setSaveState("idle");setStatus("LINEへの保存を完了できませんでした。画面の結果はそのまま確認できます。繰り返し押さず、時間をおいてからご確認ください。");}
+    finally{saving.current=false;setSaveState(s=>s==="busy"?"idle":s);}
   }
-
-  // エラー
-  if (step === "error") {
-    return (
-      <main className="max-w-md mx-auto px-5 py-16 text-center">
-        <h2 className="text-xl font-bold mb-4 text-stone-800">
-          エラーが発生しました
-        </h2>
-        <p className="text-stone-700 leading-relaxed mb-6">
-          申し訳ありません。
-          <br />
-          しばらくしてからもう一度お試しください。
-        </p>
-
-        {/* デバッグ情報（本番リリース後に削除） */}
-        <details className="mt-8 text-left bg-stone-100 rounded-xl p-4 text-xs">
-          <summary className="cursor-pointer text-stone-600 font-bold">
-            デバッグ情報
-          </summary>
-          <pre className="mt-2 whitespace-pre-wrap break-all text-stone-700">
-{JSON.stringify(debugInfo, null, 2)}
-          </pre>
-        </details>
-      </main>
-    );
+  async function loadSaved(){
+    if(saving.current)return;saving.current=true;setSaveState("busy");setStatus("");
+    try{
+      const token=await lineAccess();if(!token)return;
+      const response=await fetch("/api/diagnosis/latest/",{headers:{Authorization:"Bearer "+token}});
+      const data=await response.json();
+      if(!response.ok||!isTypeId(data.diagnosis?.main_type))throw new Error("LOAD_FAILED");
+      setExample(data.diagnosis.main_type);setRestored(true);setStatus("LINEに保存されている最新の結果を表示しています。");
+    }catch{setStatus("保存済みの結果を確認できませんでした。下の内容は結果の例です。自分の回答でチェックを始められます。");}
+    finally{saving.current=false;setSaveState("idle");}
   }
-
-  // 集計中
-  if (step === "calculating") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 px-6">
-        <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin mb-6" />
-        <p className="text-stone-700 text-center leading-relaxed">
-          あなたに合いそうな腸活の始め方を整理中...
-        </p>
-      </div>
-    );
+  if(step==="start")return <main id="main" className="check-main"><div className="check-start">
+    <p className="eyebrow">無料の生活習慣チェック / 全7問</p><h1>最近の食事や生活を<br/>思い出してみましょう。</h1>
+    <p className="hero-description">各質問で、今の自分に最も近い選択肢を1つ選びます。回答を送信せずに、この画面で結果を確認できます。</p>
+    <p>結果は振り返る項目と行動例です。実際の腸内環境や、不調の原因を判定するものではありません。</p>
+    <button className="button" onClick={()=>setStep("quiz")}>チェックを始める →</button><p className="small-note"><Link href="/notice/">集計方法</Link>・<Link href="/privacy-policy/">個人情報の取扱い</Link></p>
+  </div><Disclaimer/></main>;
+  const selectedId=result?.main??example;
+  if(step==="result"&&selectedId){
+    const data=TYPES[selectedId];
+    return <main id="main" className="check-main">
+      <header className="result-heading"><p className="eyebrow">{result?"今回の振り返り項目":restored?"保存済みの振り返り項目":"結果の例"}</p><h1 ref={heading} tabIndex={-1}>{data.name}</h1><p>{data.catchphrase}</p></header>
+      {!result&&!restored&&<div className="callout">このURLで表示しているのは結果の例です。あなたの回答を集計した結果ではありません。</div>}
+      {example&&lineEnabled&&!restored&&<button className="button secondary" disabled={saveState==="busy"} onClick={loadSaved}>LINEに保存した結果を確認する</button>}
+      <section className="result-section"><h2>まず確認すること</h2><p>{data.focus}</p><p className="small-note">5つの項目から、回答の得点が最も高い候補を表示しています。健康状態の良し悪しを示すものではありません。</p>
+        <ol className="chart-list" aria-label="5つの振り返り項目">{TYPE_IDS.map((id,i)=><li key={id} data-active={id===selectedId}><span>{i+1}</span>{TYPES[id].name}{id===selectedId&&<em>今回の候補</em>}</li>)}</ol>
+      </section>
+      <section className="result-section"><h2>試したいことを、1つ選ぶ</h2><ol className="action-list">{data.todos.map(item=><li key={item}>{item}</li>)}</ol><p className="small-note">行動例は、記録や振り返りのためのものです。特定の期間で体調が変わることを約束しません。</p></section>
+      <section className="result-section result-guide"><p className="eyebrow">GutMediaの図解ガイド</p><h2>写真とメモに、何を残す？</h2><p>料理の見た目は写真に、時刻や材料はメモに。比較図とコピーできる記入欄があります。</p><a className="button" href={SITE.foodGuideUrl}>記録の方法を図で見る ↗</a></section>
+      {result&&<details className="answer-review"><summary>今回の回答を確認する</summary><dl>{QUESTIONS.map(q=><div key={q.id}><dt>{q.text}</dt><dd>{q.choices.find(c=>c.id===answers[q.id])?.label}</dd></div>)}</dl></details>}
+      {result&&lineEnabled&&<section className="result-section save-form"><h2>結果をLINEにも残す</h2><p>希望する場合だけ、LINEで本人確認し、回答と結果を保存します。</p>
+        <label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} disabled={saveState!=="idle"}/><span><Link href="/privacy-policy/" target="_blank" rel="noopener">個人情報の取扱い</Link>を確認し、回答・結果をLINEユーザーIDと関連付けて保存し、結果をLINEに送ることに同意します。</span></label>
+        <label><input type="checkbox" checked={subscribeSteps} onChange={e=>setSubscribeSteps(e.target.checked)} disabled={saveState!=="idle"}/><span>記録を振り返る案内を、LINEで3回受け取る（任意）</span></label>
+        <button className="button" disabled={!consent||saveState!=="idle"} onClick={save}>{saveState==="busy"?"LINEに接続しています…":saveState==="done"?"保存済み":"同意してLINEに保存する"}</button>
+      </section>}
+      <p className="status" role="status">{status}</p>
+      <div className="check-actions result-actions"><button className="plain-button" onClick={reset}>{result?"回答を消して、もう一度チェック":"自分の回答でチェックする"}</button><a className="text-link" href={SITE.lineUrl}>公式LINEを開く ↗</a></div>
+      <Disclaimer/>
+    </main>;
   }
-
-  // 結果
-  if (step === "result" && result) {
-    const data = TYPES[result];
-    const subData = subResult ? TYPES[subResult] : null;
-    return (
-      <main className="max-w-md mx-auto px-4 py-8">
-        <header className="text-center mb-6">
-          <p className="text-sm text-stone-500 mb-2">
-            あなたの腸活スタートタイプは
-          </p>
-          <h1 className="text-2xl font-bold text-stone-800 leading-relaxed">
-            {data.name}
-          </h1>
-          {subData && (
-            <p className="text-sm text-stone-600 mt-3">
-              サブ傾向：{subData.name}もややあり
-            </p>
-          )}
-          <p className="text-stone-700 leading-relaxed mt-4">
-            {data.catchphrase}
-          </p>
-        </header>
-
-        <BeforeAfterSection
-          typeId={result}
-          beforeTitle={data.beforeTitle}
-          beforeDescription={data.beforeDescription}
-          afterTitle={data.afterTitle}
-          afterDescription={data.afterDescription}
-          transitionMessage={data.transitionMessage}
-          traits={data.traits}
-          altPrefix={data.name}
-        />
-
-        <p className="text-center text-sm text-stone-500 my-8">
-          ※詳しい解説はLINEのトーク画面でも確認できます
-        </p>
-
-        <button
-          onClick={async () => {
-            const consultUrl = process.env.NEXT_PUBLIC_CONSULT_URL;
-            if (!consultUrl) {
-              alert("予約URLが設定されていません。");
-              return;
-            }
-            // LIFF内ブラウザなら liff.openWindow、それ以外は新規タブで開く
-            const liff = (await import("@line/liff")).default;
-            if (liff.isInClient()) {
-              liff.openWindow({ url: consultUrl, external: false });
-            } else {
-              window.open(consultUrl, "_blank", "noopener,noreferrer");
-            }
-          }}
-          className="block w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-2xl text-center transition"
-        >
-          無料個別相談を予約する
-        </button>
-        <p className="text-xs text-stone-500 mt-3 text-center leading-relaxed">
-          30分 ・ 無料 ・ オンライン
-          <br />
-          予約はカレンダーから希望日時を選ぶだけ
-        </p>
-
-        {/* 再診断 */}
-        <section className="my-8 text-center">
-          <button
-            onClick={() => {
-              // クエリパラメータを消してスタート画面に戻す
-              window.history.replaceState({}, "", "/liff/diagnosis/");
-              setResult(null);
-              setSubResult(null);
-              setCurrentQ(0);
-              setAnswers({});
-              setStep("start");
-            }}
-            className="text-sm text-stone-500 underline"
-          >
-            もう一度診断する
-          </button>
-        </section>
-
-        <Disclaimer />
-      </main>
-    );
-  }
-
-  // 診断中
-  const q = QUESTIONS[currentQ];
-  return (
-    <main className="max-w-md mx-auto px-4 py-8">
-      <div className="text-sm text-stone-600 mb-2 text-right">
-        {currentQ + 1} / {QUESTIONS.length}
-      </div>
-      <div className="w-full bg-stone-200 rounded-full h-2 mb-8">
-        <div
-          className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-          style={{
-            width: `${((currentQ + 1) / QUESTIONS.length) * 100}%`,
-          }}
-        />
-      </div>
-
-      <h2 className="text-lg font-bold mb-6 leading-relaxed text-stone-800">
-        {q.text}
-      </h2>
-
-      <div className="space-y-3">
-        {q.choices.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => handleAnswer(q.id, c.id)}
-            className="w-full text-left bg-white hover:bg-stone-100 border border-stone-200 rounded-2xl px-5 py-4 text-stone-700 leading-relaxed transition"
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-
-      {currentQ > 0 && (
-        <button
-          onClick={() => setCurrentQ(currentQ - 1)}
-          className="mt-8 text-sm text-stone-500 underline"
-        >
-          ← 前の質問に戻る
-        </button>
-      )}
-    </main>
-  );
+  const question=QUESTIONS[current];
+  return <main id="main" className="check-main"><p className="eyebrow">生活習慣チェック</p><div className="progress-meta"><span>最も近いものを1つ選択</span><span>質問 {current+1} / {QUESTIONS.length}</span></div><progress className="progress" value={current+1} max={QUESTIONS.length} aria-label={"質問 "+(current+1)+" / "+QUESTIONS.length}/>
+    <h1 className="question-title" ref={heading} tabIndex={-1} id="question-title">{question.text}</h1>
+    <fieldset aria-labelledby="question-title" className="choices">{question.choices.map(choice=><label key={choice.id} className="choice"><input type="radio" name={"question-"+question.id} value={choice.id} checked={answers[question.id]===choice.id} onChange={()=>setAnswers({...answers,[question.id]:choice.id})}/><span>{choice.label}</span></label>)}</fieldset>
+    <div className="check-actions"><button className="plain-button" onClick={()=>current>0?setCurrent(current-1):setStep("start")}>← {current>0?"前の質問":"説明に戻る"}</button><button className="button" disabled={!answers[question.id]} onClick={next}>{current===QUESTIONS.length-1?"結果を見る":"次の質問へ"} →</button></div>
+    <p className="small-note">この画面を閉じると回答は消えます。LINEへの保存を選ぶまで、回答をサーバーに送りません。</p>
+  </main>;
 }

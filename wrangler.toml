@@ -1,6 +1,6 @@
 # Cloudflare Pages（@cloudflare/next-on-pages ビルド）用の設定。
-# Pages プロジェクトを新規作成し、このプロジェクト名と name を一致させること。
-name = "gutype"
+# 既存の本番 Pages プロジェクト gut-type に合わせる。
+name = "gut-type"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 

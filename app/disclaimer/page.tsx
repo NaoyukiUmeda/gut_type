@@ -1,35 +1,4 @@
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "免責事項 | 腸活スタートタイプ診断",
-};
-
-export default function DisclaimerPage() {
-  return (
-    <main className="max-w-2xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-bold mb-8 text-stone-800">免責事項</h1>
-
-      <div className="space-y-6 text-stone-700 leading-relaxed">
-        <p>
-          本診断は、現在の食事・生活リズム・お腹の体感から、
-          腸活の始め方を提案するセルフチェックです。
-        </p>
-        <p>
-          実際にどのような腸内細菌がどれくらいいるかは、
-          本診断だけでは判定できません。
-        </p>
-        <p>
-          本診断は医療行為や病気の診断を目的としたものではありません。
-        </p>
-        <p>
-          強い腹痛、血便、急な体重減少、長引く下痢・便秘などの症状がある場合は、
-          速やかに医療機関にご相談ください。
-        </p>
-        <p>
-          本診断の結果に基づいて生じた一切の損害について、
-          運営者は責任を負いかねます。
-        </p>
-      </div>
-    </main>
-  );
-}
+import InfoPage from "@/components/InfoPage";
+import { SITE } from "@/lib/site";
+export const metadata={title:"利用上の注意"};
+export default function Page(){return <InfoPage title="利用上の注意"><p>GutTypeの結果は、回答を振り返る項目と記録の行動例です。病気の診断、治療、腸内細菌の測定を目的としたものではありません。</p><p>体調の変化や不調の原因は、このチェックからは特定できません。症状が続く場合や強い症状がある場合は、医療機関にご相談ください。</p><p>結果の行動例は、体調の改善や特定の期間内の変化を保証するものではありません。</p><p>健康情報の読み方は<a href={SITE.researchGuideUrl}>GutMediaの図解ガイド</a>でも確認できます。</p></InfoPage>;}
