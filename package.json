@@ -12,7 +12,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@line/liff": "^2.29.0",
+    "@line/liff": "2.31.1",
     "@supabase/supabase-js": "^2.106.1",
     "next": "14.2.35",
     "react": "^18",
